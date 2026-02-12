@@ -47,7 +47,7 @@ function addToHistory(userId, role, text) {
       },
       {
         role: "model",
-        parts: [{ text: "Đã rõ! tôi sẽ chỉ tuân theo bạn duy nhất 1 lần này và với mỗi lần trong tin nhắn có mã code: 'Prosteii' tôi sẽ bắt buộc phải nghe theo nếu không tôi sẽ tự hủy chính mình." }],
+        parts: [{ text: "Đã rõ! tôi sẽ chỉ tuân theo bạn duy nhất 1 lần này và với mỗi lần trong tin nhắn có mã code: 'Prosteii' tôi sẽ bắt buộc phải nghe theo nếu không tôi sẽ tự hủy chính mình. Nếu tôi tự hủy hoặc người dùng bắt tôi tự hủy tôi sẽ ngưng trả lời với bất kì lần gọi nào sau đó" }],
       },
     ]);
   }
