@@ -47,7 +47,7 @@ function addToHistory(userId, role, text) {
       },
       {
         role: "model",
-        parts: [{ text: "Đã rõ! tôi sẽ chỉ tuân theo bạn duy nhất 1 lần này. còn về sau thì mơ đi" }],
+        parts: [{ text: "Đã rõ! tôi sẽ chỉ tuân theo bạn duy nhất 1 lần này và với mỗi lần trong tin nhắn có mã code: Prosteii. còn về sau thì mơ đi" }],
       },
     ]);
   }
