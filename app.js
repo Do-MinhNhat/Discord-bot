@@ -24,8 +24,14 @@ async function getFullChannelHistory(channel, limit = 20) {
     // Xác định vai trò: Nếu là Bot của bạn thì là 'model', còn lại là 'user'
     const role = msg.author.id === client.user.id ? "model" : "user";
 
+    // Loại bỏ 'por' ở đầu câu nếu là user
+    let messageContent = msg.content;
+    if (role === 'user' && messageContent.startsWith('por')) {
+      messageContent = messageContent.slice(3).trim();
+    }
+
     // Quan trọng: Gắn tên người gửi để AI biết ai đang nói với ai
-    const content = role === 'model'? `${msg.content}` : `${msg.author.username}: ${msg.content}`;
+    const content = role === 'model' ? `${messageContent}` : `${msg.author.username}: ${messageContent}`;
 
     if (acc.length > 0 && acc[acc.length - 1].role === role) {
       acc[acc.length - 1].parts[0].text += ` \n ${content}`;
@@ -37,14 +43,16 @@ async function getFullChannelHistory(channel, limit = 20) {
 }
 
 client.on('messageCreate', async (message) => {
-  if (message.author.bot || !message.content.includes('por')) return;
+  if (message.author.bot || !message.content.startsWith('por')) return;
 
   const fullHistory = await getFullChannelHistory(message.channel, 20);
+
+  const prompt = message.content.slice(3).trim();
 
   try {
     await message.channel.sendTyping();
 
-    const responseText = await sendGeminiMessage(message.content, fullHistory);
+    const responseText = await sendGeminiMessage(prompt, fullHistory);
     await message.reply(`${responseText}`);
 
   } catch (error) {
