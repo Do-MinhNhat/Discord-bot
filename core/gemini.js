@@ -35,10 +35,10 @@ export async function sendGeminiMessage(prompt, chatHistory = []) {
 
         let result;
 
-        console.log("--- DỮ LIỆU GỬI ĐI ---");
-        console.dir(chatHistory, { depth: null }); // depth: null để xem hết các object bên trong
-
-        console.log("--- Prompt: ---");
+        console.log("--- Lịch sử trò truyện ---");
+        console.dir(chatHistory, { depth: null });
+        console.log("----------------------------");
+        console.log("--- Dữ liệu gửi đi: ---");
         console.log(prompt);
 
         // User history: use startChat with history
