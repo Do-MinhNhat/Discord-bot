@@ -98,21 +98,14 @@ app.get('/say', async (req, res) => {
  */
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
   // Interaction id, type and data
-  const { id, type, data, channel_id, token } = req.body; // Lấy thêm token ở đây
+  const { type, data, channel_id, token } = req.body; // Lấy thêm token ở đây
 
-  /**
-   * Handle verification requests
-   */
   if (type === InteractionType.PING) {
     return res.send({ type: InteractionResponseType.PONG });
   }
 
-  /**
-   * Handle slash command requests
-   * See https://discord.com/developers/docs/interactions/application-commands#slash-commands
-   */
   if (type === InteractionType.APPLICATION_COMMAND) {
-    const { name, options } = data;
+    const { name } = data;
 
     // "delete" command
     if (name === 'delete') {
@@ -122,60 +115,63 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
           content: `Đang duyệt qua các tin nhắn...`,
         },
       });
-      try {
-        const channel = await client.channels.fetch(channel_id);
-        if (!channel) throw new Error("Không tìm thấy channel");
+      (async () => {
+        try {
+          const channel = await client.channels.fetch(channel_id);
+          if (!channel) throw new Error("Không tìm thấy channel");
 
-        // Filter bot messages
-        const botMessages = (await channel.messages.fetch({ limit: 100 }))
-          .filter(msg => msg.author.id === client.user.id)
-          .first(limitToDelete);
+          // Filter bot messages
+          const botMessages = (await channel.messages.fetch({ limit: 100 }))
+            .filter(msg => msg.author.id === client.user.id)
+            .first(limitToDelete);
 
-        if (botMessages.length > 0) {
-          let deletedCount = 0;
-          for (const msg of botMessages) {
-            try {
-              await msg.delete();
-              deletedCount++;
-            } catch (error) {
-              console.error('Failed to delete message:', error);
+          if (botMessages.length > 0) {
+            let deletedCount = 0;
+            for (const msg of botMessages) {
+              try {
+                await msg.delete();
+                deletedCount++;
+              } catch (error) {
+                console.error('Failed to delete message:', error);
+              }
             }
-          }
 
-          const endpoint = `webhooks/${process.env.APP_ID}/${token}/messages/@original`;
+            const endpoint = `webhooks/${process.env.APP_ID}/${token}/messages/@original`;
+
+            await DiscordRequest(endpoint, {
+              method: 'PATCH',
+              body: { content: `Đã dọn xong ${deletedCount} tin nhắn!` }
+            });
+
+          } else {
+            return await DiscordRequest(endpoint, {
+              method: 'PATCH',
+              body: { content: `Không tìm thấy tin nhắn nào` }
+            });
+          }
 
           await DiscordRequest(endpoint, {
             method: 'PATCH',
-            body: { content: `Đã dọn xong ${deletedCount} tin nhắn!` }
+            body: { content: `Đang dọn dẹp các tin nhắn...` }
           });
 
-        } else {
-          return await DiscordRequest(endpoint, {
-            method: 'PATCH',
-            body: { content: `Không tìm thấy tin nhắn nào` }
+          setTimeout(async () => {
+            await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
+          }, 3000);
+
+          return;
+        } catch (error) {
+          console.error('Delete command error:', error);
+          return res.send({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: '❌ Lỗi: Bot thiếu quyền hoặc lỗi hệ thống.',
+              flags: InteractionResponseFlags.EPHEMERAL
+            },
           });
         }
-
-        await DiscordRequest(endpoint, {
-          method: 'PATCH',
-          body: { content: `Đang dọn dẹp các tin nhắn...` }
-        });
-
-        setTimeout(async () => {
-          await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
-        }, 3000);
-        
-        return;
-      } catch (error) {
-        console.error('Delete command error:', error);
-        return res.send({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: '❌ Lỗi: Bot thiếu quyền hoặc lỗi hệ thống.',
-            flags: InteractionResponseFlags.EPHEMERAL
-          },
-        });
-      }
+      })();
+      return
     }
     console.error(`unknown command: ${name}`);
     return res.status(400).json({ error: 'unknown command' });
