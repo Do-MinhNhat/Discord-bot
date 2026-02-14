@@ -18,6 +18,6 @@ const DELETE_COMMAND = {
     contexts: [0, 2],
 };
 
-const ALL_COMMANDS = [TEST_COMMAND, CHALLENGE_COMMAND, DELETE_COMMAND];
+const ALL_COMMANDS = [DELETE_COMMAND];
 
 InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);
