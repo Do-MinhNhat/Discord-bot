@@ -4,8 +4,7 @@ import { DiscordRequest } from './utils.js';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { sendGeminiMessage } from './core/gemini.js';
 import { verifyKeyMiddleware } from 'discord-interactions';
-import { InteractionType, InteractionResponseType, InteractionResponseFlags, MessageComponentTypes } from 'discord-interactions';
-import { getRandomEmoji } from './utils.js';
+import { InteractionType, InteractionResponseType, InteractionResponseFlags } from 'discord-interactions';
 
 
 const app = express();
@@ -98,33 +97,60 @@ app.get('/say', async (req, res) => {
  * Parse request body and verifies incoming requests using discord-interactions package
  */
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
-  const { id, type, data, channel_id } = req.body;
+  // Interaction id, type and data
+  const { id, type, data, channel_id, token } = req.body; // Lấy thêm token ở đây
 
+  /**
+   * Handle verification requests
+   */
   if (type === InteractionType.PING) {
     return res.send({ type: InteractionResponseType.PONG });
   }
 
+  /**
+   * Handle slash command requests
+   * See https://discord.com/developers/docs/interactions/application-commands#slash-commands
+   */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name, options } = data;
 
+    // "delete" command
     if (name === 'delete') {
       try {
-        // 1. Lấy giá trị number từ options (đã sửa lại đường dẫn lấy data)
+        // Get number option from command
         const numberOption = options?.find(opt => opt.name === 'number');
-        const limitToDelete = numberOption?.value || 10;
+        const limitToDelete = numberOption?.value;
 
-        // 2. Lấy channel từ client (Giả sử bạn đã khởi tạo client ở file này)
+        // Validate number is provided and between 1 and 100
+        if (!limitToDelete || limitToDelete < 1 || limitToDelete > 100) {
+          return res.send({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: 'Số lượng tin nhắn phải từ 1 đến 100. Vui lòng nhập lại!',
+              flags: InteractionResponseFlags.EPHEMERAL,
+            },
+          });
+        }
+
+        // Fetch channel
         const channel = await client.channels.fetch(channel_id);
 
         if (!channel) throw new Error("Không tìm thấy channel");
 
-        // 3. Fetch tin nhắn (Tối đa 100 tin gần nhất để lọc)
+        // Fetch messages (max 100 to filter)
         const messages = await channel.messages.fetch({ limit: 100 });
 
-        // 4. Lọc tin nhắn của Bot
+        res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content: `Đang dọn dẹp tin nhắn ...`,
+          },
+        });
+
+        // Filter bot messages
         const botMessages = messages
           .filter(msg => msg.author.id === client.user.id)
-          .first(limitToDelete); // Chỉ lấy số lượng người dùng yêu cầu
+          .first(limitToDelete);
 
         if (botMessages.length > 0) {
           let deletedCount = 0;
@@ -137,39 +163,43 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
             }
           }
 
-          // Trả lời phản hồi cho Interaction
-          res.send({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: `🧹 Por đã dọn dẹp xong ${deletedCount} tin nhắn!`,
-            },
+          const endpoint = `webhooks/${process.env.APP_ID}/${token}/messages/@original`;
+
+          await DiscordRequest(endpoint, {
+            method: 'PATCH',
+            body: { content: `Đã dọn xong ${deletedCount} tin nhắn!` }
           });
 
-          // Xóa tin nhắn sau 3 giây
-          setTimeout(() => {
-            DiscordRequest(`webhooks/${process.env.APP_ID}/${req.body.token}/messages/@original`, {
-              method: 'DELETE',
-            }).catch(err => console.error('Error deleting message:', err));
+          setTimeout(async () => {
+            await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
           }, 3000);
+
+          return;
         } else {
           return res.send({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
-              content: '❌ Không tìm thấy tin nhắn nào của ta để xóa.',
+              content: '❌ Không tìm thấy tin nhắn nào để xóa.',
               flags: InteractionResponseFlags.EPHEMERAL,
             },
           });
         }
       } catch (error) {
         console.error('Delete command error:', error);
-        // Trả lời lỗi để Interaction không bị treo "Bot is thinking"
         return res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: { content: '❌ Lỗi: Bot thiếu quyền hoặc lỗi hệ thống.' },
+          data: {
+            content: '❌ Lỗi: Bot thiếu quyền hoặc lỗi hệ thống.',
+            flags: InteractionResponseFlags.EPHEMERAL
+          },
         });
       }
     }
+    console.error(`unknown command: ${name}`);
+    return res.status(400).json({ error: 'unknown command' });
   }
+  console.error('unknown interaction type', type);
+  return res.status(400).json({ error: 'unknown interaction type' });
 });
 
 client.login(process.env.DISCORD_TOKEN);
