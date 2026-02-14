@@ -31,7 +31,7 @@ async function getFullChannelHistory(channel, limit = 20) {
     }
 
     // Quan trọng: Gắn tên người gửi để AI biết ai đang nói với ai
-    const content = role === 'model' ? `${messageContent}` : `${msg.author.username}: ${messageContent}`;
+    const content = role === 'model' ? `${messageContent}` : `Name(${msg.author.username}): ${messageContent}`;
 
     if (acc.length > 0 && acc[acc.length - 1].role === role) {
       acc[acc.length - 1].parts[0].text += ` \n ${content}`;
@@ -47,14 +47,16 @@ client.on('messageCreate', async (message) => {
 
   const fullHistory = await getFullChannelHistory(message.channel, 15);
 
-  const historyWithoutPrompt = fullHistory.slice(1);
+  const LastMessage = fullHistory[fullHistory.length - 1];
 
-  const prompt = message.content.slice(3).trim();
+  const historyWithoutLast = fullHistory.slice(0, -1);
+
+  const prompt = LastMessage.parts[0].text;
 
   try {
     await message.channel.sendTyping();
 
-    const responseText = await sendGeminiMessage(prompt, historyWithoutPrompt);
+    const responseText = await sendGeminiMessage(prompt, historyWithoutLast);
     await message.reply(`${responseText}`);
 
   } catch (error) {
