@@ -116,21 +116,15 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
 
     // "delete" command
     if (name === 'delete') {
+      res.send({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `Đang duyệt qua các tin nhắn...`,
+        },
+      });
       try {
         const channel = await client.channels.fetch(channel_id);
         if (!channel) throw new Error("Không tìm thấy channel");
-
-        res.send({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: `Đang duyệt qua các tin nhắn...`,
-          },
-        });
-        
-        await DiscordRequest(endpoint, {
-          method: 'PATCH',
-          body: { content: `Đang dọn dẹp các tin nhắn...` }
-        });
 
         // Filter bot messages
         const botMessages = (await channel.messages.fetch({ limit: 100 }))
@@ -161,6 +155,11 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
             body: { content: `Không tìm thấy tin nhắn nào` }
           });
         }
+
+        await DiscordRequest(endpoint, {
+          method: 'PATCH',
+          body: { content: `Đang dọn dẹp các tin nhắn...` }
+        });
 
         setTimeout(async () => {
           await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
