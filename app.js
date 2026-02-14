@@ -137,14 +137,19 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
 
         if (!channel) throw new Error("Không tìm thấy channel");
 
-        // Fetch messages (max 100 to filter)
-        const messages = await channel.messages.fetch({ limit: 100 });
-
         res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
-            content: `Đang dọn dẹp tin nhắn ...`,
+            content: `Đang duyệt qua các tin nhắn...`,
           },
+        });
+
+        // Fetch messages (max 100 to filter)
+        const messages = await channel.messages.fetch({ limit: 100 });
+
+        await DiscordRequest(endpoint, {
+          method: 'PATCH',
+          body: { content: `Đang dọn dẹp các tin nhắn...` }
         });
 
         // Filter bot messages
@@ -170,20 +175,18 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
             body: { content: `Đã dọn xong ${deletedCount} tin nhắn!` }
           });
 
-          setTimeout(async () => {
-            await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
-          }, 3000);
-
-          return;
         } else {
-          return res.send({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: '❌ Không tìm thấy tin nhắn nào để xóa.',
-              flags: InteractionResponseFlags.EPHEMERAL,
-            },
+          return await DiscordRequest(endpoint, {
+            method: 'PATCH',
+            body: { content: `Không tìm thấy tin nhắn nào` }
           });
         }
+
+        setTimeout(async () => {
+          await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
+        }, 3000);
+        
+        return;
       } catch (error) {
         console.error('Delete command error:', error);
         return res.send({
