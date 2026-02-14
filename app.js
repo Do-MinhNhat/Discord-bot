@@ -4,7 +4,7 @@ import { DiscordRequest } from './utils.js';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { sendGeminiMessage } from './core/gemini.js';
 import { verifyKeyMiddleware } from 'discord-interactions';
-import { InteractionType, InteractionResponseType, InteractionResponseFlags } from 'discord-interactions';
+import { InteractionType, InteractionResponseType } from 'discord-interactions';
 
 
 const app = express();
@@ -184,8 +184,6 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
   return res.status(400).json({ error: 'unknown interaction type' });
 });
 
-client.login(process.env.DISCORD_TOKEN);
-
 app.listen(PORT, () => {
   console.log('Listening on port', PORT);
   DiscordRequest(`channels/1471517352079396905/messages`, {
@@ -195,3 +193,5 @@ app.listen(PORT, () => {
     },
   });
 });
+
+client.login(process.env.DISCORD_TOKEN);
