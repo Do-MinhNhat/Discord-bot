@@ -98,83 +98,63 @@ app.get('/say', async (req, res) => {
  * Parse request body and verifies incoming requests using discord-interactions package
  */
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
-  // Interaction id, type and data
-  const { id, type, data } = req.body;
+  const { id, type, data, channel_id } = req.body;
 
-  /**
-   * Handle verification requests
-   */
   if (type === InteractionType.PING) {
     return res.send({ type: InteractionResponseType.PONG });
   }
 
-  /**
-   * Handle slash command requests
-   * See https://discord.com/developers/docs/interactions/application-commands#slash-commands
-   */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name, options } = data;
 
-    // "delete" command
     if (name === 'delete') {
       try {
-        // Delete specific number of bot messages
-        const number = options[0].options?.[0]?.value;
+        // 1. Lấy giá trị number từ options (đã sửa lại đường dẫn lấy data)
+        const numberOption = options?.find(opt => opt.name === 'number');
+        const limitToDelete = numberOption?.value || 10;
 
-        if (!number || number < 1) {
+        // 2. Lấy channel từ client (Giả sử bạn đã khởi tạo client ở file này)
+        const channel = await client.channels.fetch(channel_id);
+
+        if (!channel) throw new Error("Không tìm thấy channel");
+
+        // 3. Fetch tin nhắn (Tối đa 100 tin gần nhất để lọc)
+        const messages = await channel.messages.fetch({ limit: 100 });
+
+        // 4. Lọc tin nhắn của Bot
+        const botMessages = messages
+          .filter(msg => msg.author.id === client.user.id)
+          .first(limitToDelete); // Chỉ lấy số lượng người dùng yêu cầu
+
+        if (botMessages.length > 0) {
+          await channel.bulkDelete(botMessages, true);
+
+          // Trả lời phản hồi cho Interaction
           return res.send({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
-              content: 'Hãy nhập số lượng lớn hơn 0.',
+              content: `🧹 Por đã dọn dẹp xong ${botMessages.length} tin nhắn!`,
+            },
+          });
+        } else {
+          return res.send({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: '❌ Không tìm thấy tin nhắn nào của ta để xóa.',
               flags: InteractionResponseFlags.EPHEMERAL,
             },
           });
         }
-
-        const messages = await message.channel.messages.fetch({ limit: 100 });
-
-        const botMessages = messages.filter(msg => msg.author.id === client.user.id);
-
-        if (botMessages.size > 0) {
-          await message.channel.bulkDelete(botMessages, true);
-          message.channel.send("🧹 Đã dọn dẹp các phản hồi cũ của Por!").then(m => {
-            setTimeout(() => m.delete(), 3000); // Tự xóa thông báo này sau 3s
-          });
-        }
-        else {
-          return res.send({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: '❌ Không tìm thấy tin nhắn của bot để xóa.',
-              flags: InteractionResponseFlags.EPHEMERAL,
-            },
-          });
-        }
-
-        return res.send({
-          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: `✅ Đã xóa ${botMessages.size} tin nhắn của bot.`
-          },
-        });
       } catch (error) {
         console.error('Delete command error:', error);
+        // Trả lời lỗi để Interaction không bị treo "Bot is thinking"
         return res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-          data: {
-            content: '❌ Đã xảy ra lỗi khi xóa tin nhắn.',
-            flags: InteractionResponseFlags.EPHEMERAL,
-          },
+          data: { content: '❌ Lỗi: Bot thiếu quyền hoặc lỗi hệ thống.' },
         });
       }
     }
-
-    console.error(`unknown command: ${name}`);
-    return res.status(400).json({ error: 'unknown command' });
   }
-
-  console.error('unknown interaction type', type);
-  return res.status(400).json({ error: 'unknown interaction type' });
 });
 
 client.login(process.env.DISCORD_TOKEN);
