@@ -21,6 +21,8 @@ async function getFullChannelHistory(channel, limit = 20) {
   const sorted = Array.from(messages.values()).reverse();
 
   return sorted.reduce((acc, msg) => {
+    // 1. Bỏ qua tin nhắn nếu nó không có nội dung chữ (chỉ có ảnh/embed)
+    if (!msg.content && msg.attachments.size === 0) return acc;
     // Xác định vai trò: Nếu là Bot của bạn thì là 'model', còn lại là 'user'
     const role = msg.author.id === client.user.id ? "model" : "user";
 
@@ -29,6 +31,9 @@ async function getFullChannelHistory(channel, limit = 20) {
     if (role === 'user' && messageContent.startsWith('por')) {
       messageContent = messageContent.slice(3).trim();
     }
+
+    if (messageContent.length === 0)
+      messageContent = 'Hãy trả lời tất cả các câu hỏi mà tôi hoặc những người khác vừa gửi hoặc đã gửi trước đó.';
 
     // Quan trọng: Gắn tên người gửi để AI biết ai đang nói với ai
     const content = role === 'model' ? `${messageContent}` : `Name(${msg.author.username}): ${messageContent}`;
