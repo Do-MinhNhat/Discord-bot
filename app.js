@@ -184,6 +184,9 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
   return res.status(400).json({ error: 'unknown interaction type' });
 });
 
+console.log('--- Có request mới từ Discord ---');
+console.log('Type:', req.body.type);
+
 app.listen(PORT, () => {
   console.log('Listening on port', PORT);
   DiscordRequest(`channels/1471517352079396905/messages`, {
