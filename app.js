@@ -97,6 +97,10 @@ app.get('/say', async (req, res) => {
  * Parse request body and verifies incoming requests using discord-interactions package
  */
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
+
+  console.log('--- Có request mới từ Discord ---');
+  console.log('Type:', req.body.type);
+  
   // Interaction id, type and data
   const { type, data, channel_id, token } = req.body; // Lấy thêm token ở đây
 
@@ -184,8 +188,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
   return res.status(400).json({ error: 'unknown interaction type' });
 });
 
-console.log('--- Có request mới từ Discord ---');
-console.log('Type:', req.body.type);
+
 
 app.listen(PORT, () => {
   console.log('Listening on port', PORT);
