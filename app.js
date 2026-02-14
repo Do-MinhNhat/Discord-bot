@@ -108,6 +108,11 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     const { name, options } = data;
 
     if (name === 'delete') {
+      res.send({
+        type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+        data: { flags: InteractionResponseFlags.EPHEMERAL } // Chỉ người gọi mới thấy hoặc không
+      });
+      
       try {
         // 1. Lấy giá trị number từ options (đã sửa lại đường dẫn lấy data)
         const numberOption = options?.find(opt => opt.name === 'number');
