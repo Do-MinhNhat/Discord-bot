@@ -11,6 +11,8 @@ const DELETE_COMMAND = {
             name: 'number',
             description: 'Nhập số lượng tin nhắn cần duyệt qua (tối đa 100)',
             required: true,
+            min_value: 1,
+            max_value: 100,
         },
     ],
     type: 1,

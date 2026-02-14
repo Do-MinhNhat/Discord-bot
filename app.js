@@ -117,24 +117,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     // "delete" command
     if (name === 'delete') {
       try {
-        // Get number option from command
-        const numberOption = options?.find(opt => opt.name === 'number');
-        const limitToDelete = numberOption?.value;
-
-        // Validate number is provided and between 1 and 100
-        if (!limitToDelete || limitToDelete < 1 || limitToDelete > 100) {
-          return res.send({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: 'Số lượng tin nhắn phải từ 1 đến 100. Vui lòng nhập lại!',
-              flags: InteractionResponseFlags.EPHEMERAL,
-            },
-          });
-        }
-
-        // Fetch channel
         const channel = await client.channels.fetch(channel_id);
-
         if (!channel) throw new Error("Không tìm thấy channel");
 
         res.send({
@@ -143,17 +126,14 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
             content: `Đang duyệt qua các tin nhắn...`,
           },
         });
-
-        // Fetch messages (max 100 to filter)
-        const messages = await channel.messages.fetch({ limit: 100 });
-
+        
         await DiscordRequest(endpoint, {
           method: 'PATCH',
           body: { content: `Đang dọn dẹp các tin nhắn...` }
         });
 
         // Filter bot messages
-        const botMessages = messages
+        const botMessages = (await channel.messages.fetch({ limit: 100 }))
           .filter(msg => msg.author.id === client.user.id)
           .first(limitToDelete);
 
