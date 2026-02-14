@@ -47,12 +47,14 @@ client.on('messageCreate', async (message) => {
 
   const fullHistory = await getFullChannelHistory(message.channel, 15);
 
+  const historyWithoutPrompt = fullHistory.slice(1);
+
   const prompt = message.content.slice(3).trim();
 
   try {
     await message.channel.sendTyping();
 
-    const responseText = await sendGeminiMessage(prompt, fullHistory);
+    const responseText = await sendGeminiMessage(prompt, historyWithoutPrompt);
     await message.reply(`${responseText}`);
 
   } catch (error) {
