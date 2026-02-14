@@ -45,7 +45,7 @@ async function getFullChannelHistory(channel, limit = 20) {
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.content.startsWith('por')) return;
 
-  const fullHistory = await getFullChannelHistory(message.channel, 20);
+  const fullHistory = await getFullChannelHistory(message.channel, 15);
 
   const prompt = message.content.slice(3).trim();
 
@@ -60,8 +60,6 @@ client.on('messageCreate', async (message) => {
     await message.reply("Hệ thống đang lỗi, vui lòng thử lại sau");
   }
 });
-
-
 
 app.get('/say', async (req, res) => {
   const { message, CHANNEL_ID } = req.query;
