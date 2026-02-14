@@ -100,78 +100,82 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
   // Interaction id, type and data
   const { type, data, channel_id, token } = req.body; // Lấy thêm token ở đây
 
+  /**
+   * Handle verification requests
+   */
   if (type === InteractionType.PING) {
     return res.send({ type: InteractionResponseType.PONG });
   }
 
+  /**
+   * Handle slash command requests
+   * See https://discord.com/developers/docs/interactions/application-commands#slash-commands
+   */
   if (type === InteractionType.APPLICATION_COMMAND) {
-    const { name } = data;
+    const { name, options } = data;
 
     // "delete" command
     if (name === 'delete') {
-      res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          content: `Đang duyệt qua các tin nhắn...`,
-        },
-      });
-      (async () => {
-        try {
-          const channel = await client.channels.fetch(channel_id);
-          if (!channel) throw new Error("Không tìm thấy channel");
+      const channel = await client.channels.fetch(channel_id);
 
-          // Filter bot messages
-          const botMessages = (await channel.messages.fetch({ limit: 100 }))
-            .filter(msg => msg.author.id === client.user.id)
-            .first(limitToDelete);
+      if (!channel) throw new Error("Không tìm thấy channel");
 
-          if (botMessages.length > 0) {
-            let deletedCount = 0;
-            for (const msg of botMessages) {
-              try {
-                await msg.delete();
-                deletedCount++;
-              } catch (error) {
-                console.error('Failed to delete message:', error);
-              }
-            }
+      const endpoint = `webhooks/${process.env.APP_ID}/${token}/messages/@original`;
+      
+      try {
+        res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content: `Đang duyệt qua các tin nhắn...`,
+          },
+        });
+        // Fetch messages (max 100 to filter)
+        const messages = await channel.messages.fetch({ limit: 100 });
 
-            const endpoint = `webhooks/${process.env.APP_ID}/${token}/messages/@original`;
-
-            await DiscordRequest(endpoint, {
-              method: 'PATCH',
-              body: { content: `Đã dọn xong ${deletedCount} tin nhắn!` }
-            });
-
-          } else {
-            return await DiscordRequest(endpoint, {
-              method: 'PATCH',
-              body: { content: `Không tìm thấy tin nhắn nào` }
-            });
-          }
-
+        // Filter bot messages
+        const botMessages = messages
+          .filter(msg => msg.author.id === client.user.id)
+          .first(options[0].value);
+        
+        if (botMessages.length > 0) {
           await DiscordRequest(endpoint, {
             method: 'PATCH',
             body: { content: `Đang dọn dẹp các tin nhắn...` }
           });
+          let deletedCount = 0;
+          for (const msg of botMessages) {
+            try {
+              await msg.delete();
+              deletedCount++;
+            } catch (error) {
+              console.error('Failed to delete message:', error);
+            }
+          }
 
-          setTimeout(async () => {
-            await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
-          }, 3000);
+          await DiscordRequest(endpoint, {
+            method: 'PATCH',
+            body: { content: `Đã dọn xong ${deletedCount} tin nhắn!` }
+          });
 
-          return;
-        } catch (error) {
-          console.error('Delete command error:', error);
-          return res.send({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: '❌ Lỗi: Bot thiếu quyền hoặc lỗi hệ thống.',
-              flags: InteractionResponseFlags.EPHEMERAL
-            },
+        } else {
+          return await DiscordRequest(endpoint, {
+            method: 'PATCH',
+            body: { content: `Không tìm thấy tin nhắn nào` }
           });
         }
-      })();
-      return
+
+        setTimeout(async () => {
+          await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
+        }, 3000);
+        
+        return;
+      } catch (error) {
+        console.error('Delete command error:', error);
+        return await DiscordRequest(endpoint, {
+          method: 'PATCH',
+          body: { content: `Lỗi: ${error.message}` }
+        });
+      }
     }
     console.error(`unknown command: ${name}`);
     return res.status(400).json({ error: 'unknown command' });
