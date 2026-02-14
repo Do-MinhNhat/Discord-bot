@@ -108,11 +108,6 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     const { name, options } = data;
 
     if (name === 'delete') {
-      res.send({
-        type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-        data: { flags: InteractionResponseFlags.EPHEMERAL } // Chỉ người gọi mới thấy hoặc không
-      });
-      
       try {
         // 1. Lấy giá trị number từ options (đã sửa lại đường dẫn lấy data)
         const numberOption = options?.find(opt => opt.name === 'number');
@@ -132,15 +127,30 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
           .first(limitToDelete); // Chỉ lấy số lượng người dùng yêu cầu
 
         if (botMessages.length > 0) {
-          await channel.bulkDelete(botMessages, true);
+          let deletedCount = 0;
+          for (const msg of botMessages) {
+            try {
+              await msg.delete();
+              deletedCount++;
+            } catch (error) {
+              console.error('Failed to delete message:', error);
+            }
+          }
 
           // Trả lời phản hồi cho Interaction
-          return res.send({
+          res.send({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
             data: {
-              content: `🧹 Por đã dọn dẹp xong ${botMessages.length} tin nhắn!`,
+              content: `🧹 Por đã dọn dẹp xong ${deletedCount} tin nhắn!`,
             },
           });
+
+          // Xóa tin nhắn sau 3 giây
+          setTimeout(() => {
+            DiscordRequest(`webhooks/${process.env.APP_ID}/${req.body.token}/messages/@original`, {
+              method: 'DELETE',
+            }).catch(err => console.error('Error deleting message:', err));
+          }, 3000);
         } else {
           return res.send({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
