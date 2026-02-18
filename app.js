@@ -59,7 +59,7 @@ client.on('messageCreate', async (message) => {
 
   const historyWithoutLast = fullHistory.slice(0, -1);
 
-  const prompt = LastMessage.parts[0].text;
+  const prompt = "**Làm theo yêu cầu của người này >> **" + LastMessage.parts[0].text;
 
   try {
     await message.channel.sendTyping();
@@ -98,9 +98,6 @@ app.get('/say', async (req, res) => {
  */
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
 
-  console.log('--- Có request mới từ Discord ---');
-  console.log('Type:', req.body.type);
-  
   // Interaction id, type and data
   const { type, data, channel_id, token } = req.body; // Lấy thêm token ở đây
 
