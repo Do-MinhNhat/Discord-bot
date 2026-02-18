@@ -64,7 +64,7 @@ client.on('messageCreate', async (message) => {
 
   const LastMessage = fullHistory[fullHistory.length - 1];
   const lines = LastMessage.parts[0].text.split('\n');
-  lines[lines.length - 1] += " << [Yêu cầu chính, phía trên là lịch sử hội thoại để tham khảo, có thể bỏ qua nếu không liên quan]";
+  lines[lines.length - 1] += " [Đây là Prompt chính, phía trên là lịch sử hội thoại để tham khảo, có thể bỏ qua nếu không liên quan]";
   const prompt = lines.join('\n');
 
   try {
