@@ -64,7 +64,7 @@ client.on('messageCreate', async (message) => {
 
   const LastMessage = fullHistory[fullHistory.length - 1];
   const lines = LastMessage.parts[0].text.split('\n');
-  lines[lines.length - 1] += " <<< Yêu cầu chính, phía trên là lịch sử hội thoại để tham khảo, có thể bỏ qua nếu không liên quan.";
+  lines[lines.length - 1] += " << [Yêu cầu chính, phía trên là lịch sử hội thoại để tham khảo, có thể bỏ qua nếu không liên quan]";
   const prompt = lines.join('\n');
 
   try {
@@ -132,8 +132,8 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     }
 
     if (name === 'start') {
-      const instruction = options.find(opt => opt.name === 'instruction')?.value || null;
-      const model = options.find(opt => opt.name === 'model')?.value || 0;
+      const instruction = options?.find(opt => opt.name === 'instruction')?.value || null;
+      const model = options?.find(opt => opt.name === 'model')?.value || 0;
       try {
         chatSession = await startGemini(instruction, model);
         return res.send({
