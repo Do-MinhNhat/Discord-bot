@@ -20,6 +20,42 @@ const DELETE_COMMAND = {
     contexts: [0, 2],
 };
 
-const ALL_COMMANDS = [DELETE_COMMAND];
+const START_GEMINI_COMMAND = {
+    name: 'start',
+    description: 'Khởi động hệ thống Chat Bot',
+    options: [
+        {
+            type: 4,
+            name: 'instruction',
+            description: 'Nhập hướng dẫn hoặc nhân cách (để trống để sử dụng mặc định)',
+        },
+        {
+            type: 4,
+            name: 'model',
+            description: 'Chọn model (0-5)',
+            choices: [
+                { name: 'gemma-3n-e2b-it (Mặc định và khuyên dùng)', value: 0 },
+                { name: 'gemma-3n-e4b-it', value: 1 },
+                { name: 'gemma-3-27b-it', value: 2 },
+                { name: 'gemma-3-12b-it', value: 3 },
+                { name: 'gemma-3-4b-it', value: 4 },
+                { name: 'gemma-3-1b-it', value: 5 },
+            ],
+        },
+    ],
+    type: 1,
+    integration_types: [0, 1],
+    contexts: [0, 2],
+};
+
+const STOP_GEMINI_COMMAND = {
+    name: 'stop',
+    description: 'Dừng hệ thống Chat Bot',
+    type: 1,
+    integration_types: [0, 1],
+    contexts: [0, 2],
+};
+
+const ALL_COMMANDS = [DELETE_COMMAND, START_GEMINI_COMMAND, STOP_GEMINI_COMMAND];
 
 InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);

@@ -12,39 +12,41 @@ const modelList = [
     "gemma-3-1b-it",
 ]
 
-const index = 0;
-const maxIndex = modelList.length - 1;
-
 async function getSystemInstruction() {
     const filePath = await readFile(new URL('../nhancach.txt', import.meta.url), 'utf8');
     return filePath;
 }
 
-export async function sendGeminiMessage(prompt, chatHistory = []) {
+export async function startGemini(instruction = null, modelIndex = 0) {
+    if (!instruction) {
+        instruction = await getSystemInstruction();
+    }
+
+    console.log("Đang khởi tạo Gemini...");
+
     try {
-        const model = genAI.getGenerativeModel({
-            model: modelList[index],
-        });
+    const model = genAI.getGenerativeModel({
+        model: modelList[modelIndex],
+    });
 
-        const instruction = await getSystemInstruction();
-
-        chatHistory.unshift(
+    return model.startChat({
+        history: [
             { role: "user", parts: [{ text: instruction }] },
             { role: "model", parts: [{ text: "Hệ thống được thiết lập hoàn tất xin mời tiếp tục." }] }
-        );
+        ]
+    });
+    } catch (error) {
+        console.error("Lỗi khi khởi động Gemini:", error);
+        throw error;
+    }
+}
 
+export async function sendGeminiMessage(prompt, chatSession) {
+    try {
         let result;
-
-        console.log("--- Lịch sử trò truyện ---");
-        console.dir(chatHistory, { depth: null });
-        console.log("----------------------------");
         console.log("--- Dữ liệu gửi đi: ---");
         console.log(prompt);
 
-        // User history: use startChat with history
-        const chatSession = model.startChat({
-            history: chatHistory,
-        });
         result = await chatSession.sendMessage(prompt);
 
         console.log("--- PHẢN HỒI TỪ AI ---");
@@ -53,9 +55,7 @@ export async function sendGeminiMessage(prompt, chatHistory = []) {
         return result.response.text();
     } catch (error) {
         if (error.message.includes("quota") && index < maxIndex) {
-            index += 1;
-            console.log(`Chuyển sang model kế tiếp: ${modelList[index]}`);
-            return await sendGeminiMessage(prompt, chatHistory);
+            throw new Error("Đã hết hạn mức sử dụng cho model này, vui lòng chọn model khác hoặc thử lại sau.");
         }
         console.error("Lỗi Gemini API:", error);
         throw error;

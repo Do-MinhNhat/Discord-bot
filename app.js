@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { DiscordRequest } from './utils.js';
 import { Client, GatewayIntentBits } from 'discord.js';
-import { sendGeminiMessage } from './core/gemini.js';
+import { sendGeminiMessage, startGemini } from './core/gemini.js';
 import { verifyKeyMiddleware } from 'discord-interactions';
 import { InteractionType, InteractionResponseType } from 'discord-interactions';
 
@@ -17,6 +17,8 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
   ],
 });
+
+var chatSession = null;
 
 async function getFullChannelHistory(channel, limit = 20) {
   const messages = await channel.messages.fetch({ limit });
@@ -36,13 +38,13 @@ async function getFullChannelHistory(channel, limit = 20) {
     }
 
     if (messageContent.length === 0)
-      messageContent = 'Hãy trả lời tất cả các câu hỏi mà tôi hoặc những người khác vừa gửi hoặc đã gửi trước đó hoặc chào tôi nếu không có gì liên quan tới bạn.';
+      messageContent = 'Hãy trả lời tất cả các câu hỏi mà tôi hoặc những người khác vừa gửi hoặc chào tôi nếu không có gì liên quan tới bạn.';
 
     // Quan trọng: Gắn tên người gửi để AI biết ai đang nói với ai
-    const content = role === 'model' ? `${messageContent}` : `Name & Id(${msg.author.username} - ${msg.author.id}): ${messageContent}`;
+    const content = role === 'model' ? `${messageContent}` : `<@${msg.author.id}>: ${messageContent}`;
 
     if (acc.length > 0 && acc[acc.length - 1].role === role) {
-      acc[acc.length - 1].parts[0].text += ` \n ${content}`;
+      acc[acc.length - 1].parts[0].text += `\n${content}`;
     } else {
       acc.push({ role, parts: [{ text: content }] });
     }
@@ -50,21 +52,25 @@ async function getFullChannelHistory(channel, limit = 20) {
   }, []);
 }
 
+
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.content.startsWith('por')) return;
+  if (!chatSession) {
+    await message.reply("Hệ thống chưa được khởi động, vui lòng sử dụng lệnh /start");
+    return;
+  }
 
   const fullHistory = await getFullChannelHistory(message.channel, 15);
 
   const LastMessage = fullHistory[fullHistory.length - 1];
-
-  const historyWithoutLast = fullHistory.slice(0, -1);
-
-  const prompt = "**Làm theo yêu cầu của người này >> **" + LastMessage.parts[0].text;
+  const lines = LastMessage.parts[0].text.split('\n');
+  lines[lines.length - 1] += " <<< Yêu cầu chính, phía trên là lịch sử hội thoại để tham khảo, có thể bỏ qua nếu không liên quan.";
+  const prompt = lines.join('\n');
 
   try {
     await message.channel.sendTyping();
 
-    const responseText = await sendGeminiMessage(prompt, historyWithoutLast);
+    const responseText = await sendGeminiMessage(prompt,chatSession);
     await message.reply(`${responseText}`);
 
   } catch (error) {
@@ -114,6 +120,36 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
    */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name, options } = data;
+
+    if (name === 'stop') {
+      chatSession = null;
+      return res.send({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `Hệ thống đã được dừng!`,
+        },
+      });
+    }
+
+    if (name === 'start') {
+      let instruction = null, model = 0; 
+      if(options && options.length > 0) {
+        instruction = options[0]?.value || undefined;
+        model = options[1]?.value || undefined;
+      }
+      try {
+        chatSession = await startGemini(instruction, model);
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content: `Hệ thống đã được khởi động!`,
+          },
+        });
+      } catch (error) {
+        console.error('Error starting Chat Bot:', error);
+        return res.status(500).send({ error: 'Failed to start Chat Bot' });
+      }
+    }
 
     // "delete" command
     if (name === 'delete') {
