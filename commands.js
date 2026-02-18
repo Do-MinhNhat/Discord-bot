@@ -25,7 +25,7 @@ const START_GEMINI_COMMAND = {
     description: 'Khởi động hệ thống Chat Bot',
     options: [
         {
-            type: 4,
+            type: 3,
             name: 'instruction',
             description: 'Nhập hướng dẫn hoặc nhân cách (để trống để sử dụng mặc định)',
         },

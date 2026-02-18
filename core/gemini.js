@@ -18,9 +18,7 @@ async function getSystemInstruction() {
 }
 
 export async function startGemini(instruction = null, modelIndex = 0) {
-    if (!instruction) {
-        instruction = await getSystemInstruction();
-    }
+    const systemInstruction = await getSystemInstruction();
 
     console.log("Đang khởi tạo Gemini...");
 
@@ -31,7 +29,7 @@ export async function startGemini(instruction = null, modelIndex = 0) {
 
     return model.startChat({
         history: [
-            { role: "user", parts: [{ text: instruction }] },
+            { role: "user", parts: [{ text: systemInstruction + (instruction ? "\n**Các Yêu cầu hệ thống khác**: " + instruction : "") }] },
             { role: "model", parts: [{ text: "Hệ thống được thiết lập hoàn tất xin mời tiếp tục." }] }
         ]
     });

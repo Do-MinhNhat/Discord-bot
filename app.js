@@ -38,7 +38,7 @@ async function getFullChannelHistory(channel, limit = 20) {
     }
 
     if (messageContent.length === 0)
-      messageContent = 'Hãy trả lời tất cả các câu hỏi mà tôi hoặc những người khác vừa gửi hoặc chào tôi nếu không có gì liên quan tới bạn.';
+      messageContent = '[Tin nhắn này dùng để gọi AI phản hồi, không có nội dung chữ]';
 
     // Quan trọng: Gắn tên người gửi để AI biết ai đang nói với ai
     const content = role === 'model' ? `${messageContent}` : `<@${msg.author.id}>: ${messageContent}`;
@@ -132,11 +132,8 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     }
 
     if (name === 'start') {
-      let instruction = null, model = 0; 
-      if(options && options.length > 0) {
-        instruction = options[0]?.value || undefined;
-        model = options[1]?.value || undefined;
-      }
+      const instruction = options.find(opt => opt.name === 'instruction')?.value || null;
+      const model = options.find(opt => opt.name === 'model')?.value || 0;
       try {
         chatSession = await startGemini(instruction, model);
         return res.send({
