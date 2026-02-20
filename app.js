@@ -26,7 +26,7 @@ async function sendLongTextAsFile(token, text) {
     filename: 'log.txt',
     contentType: 'text/plain',
   });
-  url = `webhooks/${process.env.APP_ID}/${token}/messages/@original/files`;
+  const url = `webhooks/${process.env.APP_ID}/${token}/messages/@original/files`;
   await DiscordRequest(url, {
     method: 'PATCH',
     body: form,
