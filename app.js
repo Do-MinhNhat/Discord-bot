@@ -5,6 +5,7 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import { sendGeminiMessage, startGemini } from './core/gemini.js';
 import { verifyKeyMiddleware } from 'discord-interactions';
 import { InteractionType, InteractionResponseType } from 'discord-interactions';
+import { FormData } from 'formdata-node';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,7 +18,25 @@ const client = new Client({
   ],
 });
 
-const chatSessions = new Map();
+const chatSessions = new Map(); // Lưu trữ chat session theo Server
+
+async function sendLongTextAsFile(token, textContent, fileName = "response.txt") {
+  const applicationId = process.env.APP_ID;
+  const url = `https://discord.com/api/v10/webhooks/${applicationId}/${token}`;
+
+  const formData = new FormData();
+
+  // Tạo file từ chuỗi văn bản
+  const fileContent = Buffer.from(textContent, 'utf-8');
+
+  // Đính kèm file vào FormData
+  formData.append('files[0]', new Blob([fileContent]), fileName);
+
+  await fetch(url, {
+    method: 'POST',
+    body: formData
+  });
+}
 
 async function getFullChannelHistory(channel, limit = 20) {
   const messages = await channel.messages.fetch({ limit });
@@ -39,13 +58,18 @@ async function getFullChannelHistory(channel, limit = 20) {
     if (messageContent.length === 0)
       messageContent = '[Tin nhắn này dùng để gọi AI phản hồi, không có nội dung chữ]';
 
-    // Quan trọng: Gắn tên người gửi để AI biết ai đang nói với ai
+    // Gắn tên người gửi để AI biết ai đang nói với ai
     const content = role === 'model' ? `${messageContent}` : `<@${msg.author.id}>: ${messageContent}`;
 
     if (acc.length > 0 && acc[acc.length - 1].role === role) {
-      acc[acc.length - 1].parts[0].text += `\n${content}`;
+      // Nếu cùng tác giả thì không lặp lại mention
+      const mergedContent = (role === 'user' && acc[acc.length - 1]._lastAuthorId === msg.author.id)
+        ? messageContent
+        : content;
+      acc[acc.length - 1].parts[0].text += `\n${mergedContent}`;
+      acc[acc.length - 1]._lastAuthorId = msg.author.id;
     } else {
-      acc.push({ role, parts: [{ text: content }] });
+      acc.push({ role, parts: [{ text: content }], _lastAuthorId: msg.author.id });
     }
     return acc;
   }, []);
@@ -69,8 +93,13 @@ client.on('messageCreate', async (message) => {
   try {
     await message.channel.sendTyping();
 
-    const responseText = await sendGeminiMessage(prompt,chatSession);
-    await message.reply(`${responseText}`);
+    const responseText = await sendGeminiMessage(prompt, chatSession);
+
+    responseText.split('\n').forEach(line => {
+      if (line.trim().length > 0) {
+        message.reply(line);
+      }
+    });
 
   } catch (error) {
     console.error('AI Error:', error);
@@ -120,6 +149,32 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name, options } = data;
 
+    if (name === 'log') {
+      res.send({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `Đang lấy log...`,
+        },
+      });
+      const chatSession = chatSessions.get(guild_id);
+      if (!chatSession) {
+        return await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
+          method: 'PATCH',
+          body: { content: `Log rỗng!` }
+        });
+      }
+      const log = chatSession.getHistory().map(entry => `${entry.role.toUpperCase()}: ${entry.parts.map(p => p.text).join('')}`).join('\n\n');
+      if (log.length > 1900) {
+        await sendLongTextAsFile(token, log);
+        return;
+      } else {
+        return await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
+          method: 'PATCH',
+          body: { content: `\`\`\`${log}\`\`\`` }
+        });
+      }
+    }
+
     if (name === 'stop') {
       chatSessions.delete(guild_id);
       return res.send({
@@ -155,7 +210,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       if (!channel) throw new Error("Không tìm thấy channel");
 
       const endpoint = `webhooks/${process.env.APP_ID}/${token}/messages/@original`;
-      
+
       try {
         res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -170,7 +225,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
         const botMessages = messages
           .filter(msg => msg.author.id === client.user.id)
           .first(options[0].value);
-        
+
         if (botMessages.length > 0) {
           await DiscordRequest(endpoint, {
             method: 'PATCH',
@@ -201,7 +256,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
         setTimeout(async () => {
           await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
         }, 3000);
-        
+
         return;
       } catch (error) {
         console.error('Delete command error:', error);

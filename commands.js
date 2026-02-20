@@ -56,6 +56,14 @@ const STOP_GEMINI_COMMAND = {
     contexts: [0, 2],
 };
 
-const ALL_COMMANDS = [DELETE_COMMAND, START_GEMINI_COMMAND, STOP_GEMINI_COMMAND];
+const LOG_COMMAND = {
+    name: 'log',
+    description: 'Xem log của hệ thống Chat Bot',
+    type: 1,
+    integration_types: [0, 1],
+    contexts: [0, 2],
+};
+
+const ALL_COMMANDS = [DELETE_COMMAND, START_GEMINI_COMMAND, STOP_GEMINI_COMMAND, LOG_COMMAND];
 
 InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);
