@@ -86,7 +86,7 @@ client.on('messageCreate', async (message) => {
 
   const LastMessage = fullHistory[fullHistory.length - 1];
   const lines = LastMessage.parts[0].text.split('\n');
-  lines[lines.length - 1] = ">>>" + lines[lines.length - 1];
+  lines[lines.length - 1] = ">>> " + lines[lines.length - 1];
   const prompt = lines.join('\n');
 
   try {
