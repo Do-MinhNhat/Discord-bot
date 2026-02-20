@@ -5,7 +5,7 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import { sendGeminiMessage, startGemini } from './core/gemini.js';
 import { verifyKeyMiddleware } from 'discord-interactions';
 import { InteractionType, InteractionResponseType } from 'discord-interactions';
-import FormData from 'form-data';
+import { FormData, Blob } from 'formdata-node';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,29 +20,18 @@ const client = new Client({
 
 const chatSessions = new Map(); // Lưu trữ chat session theo Server
 
-async function sendLongTextAsFile(token, text) {
-  const form = new FormData();
-  form.append('files[0]', Buffer.from(text, 'utf-8'), {
-    filename: 'log.txt',
-    contentType: 'text/plain',
-  });
-  form.append('payload_json', JSON.stringify({ content: '', attachments: [{ id: 0, filename: 'log.txt' }] }), {
-    contentType: 'application/json',
-  });
-  const url = `https://discord.com/api/v10/webhooks/${process.env.APP_ID}/${token}/messages/@original`;
-  const res = await fetch(url, {
+async function sendLogToDiscord(token, textContent) {
+  const blob = new Blob([textContent], { type: 'text/plain' });
+  const formData = new FormData();
+
+  formData.append('file', blob, 'history.txt');
+  formData.append('payload_json', JSON.stringify({ content: "Đây là file log của bạn:" }));
+
+  return await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
     method: 'PATCH',
-    body: form,
-    headers: {
-      Authorization: `Bot ${process.env.DISCORD_TOKEN}`,
-      ...form.getHeaders(),
-    },
+    headers: { 'Authorization': `Bot ${process.env.DISCORD_TOKEN}` },
+    body: formData
   });
-  if (!res.ok) {
-    const data = await res.json();
-    console.error('sendLongTextAsFile error:', data);
-    throw new Error(JSON.stringify(data));
-  }
 }
 
 async function getFullChannelHistory(channel, limit = 20) {
@@ -158,7 +147,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
           content: `Đang lấy log...`,
-          flag: 64,
+          flags: 64,
         },
       });
       const chatSession = chatSessions.get(guild_id);
@@ -170,15 +159,8 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       }
       const history = await chatSession.getHistory()
       const log = history.map(entry => `${entry.role.toUpperCase()}: ${entry.parts.map(p => p.text).join('')}`).join('\n\n');
-      if (log.length > 1900) {
-        await sendLongTextAsFile(token, log);
-        return;
-      } else {
-        return await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
-          method: 'PATCH',
-          body: { content: `\`\`\`${log}\`\`\`` }
-        });
-      }
+      await sendLogToDiscord(token, log);
+      return;
     }
 
     if (name === 'stop') {
