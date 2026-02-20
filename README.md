@@ -1,6 +1,6 @@
 ## DEMO
 
-![Demo of app] https://github.com/user-attachments/assets/f5ca8eda-f9b1-42da-aef1-2d58820a14fd
+<video src="https://github.com/user-attachments/assets/f5ca8eda-f9b1-42da-aef1-2d58820a14fd.mp4" controls="controls" style="max-width: 100%;"></video>
 
 ## Link to invite the bot:
 
@@ -8,10 +8,10 @@ https://discord.com/oauth2/authorize?client_id=1471095365028548720
 
 ## Commands:
 
-/start [instruction] [model] -> or just /start to start the bot
-/stop -> Stop the bot
-/delete number ... -> search chat to delete bot message max is 100 (not delete total bot message)
-/log -> see the conversation log
+- /start [instruction] [model] -> or just /start to start the bot <br>
+- /stop -> Stop the bot
+- /delete number ... -> search chat to delete bot message max is 100 (not delete total bot message)
+- /log -> see the conversation log
 
 ## This Project is based on https://github.com/discord/discord-example-app.git
 
@@ -23,4 +23,5 @@ https://discord.com/oauth2/authorize?client_id=1471095365028548720
 
 ## Contact me:
 
+Discord: p_or
 Gmail: dominhnhat328@gmail.com
