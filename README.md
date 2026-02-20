@@ -13,7 +13,7 @@ https://discord.com/oauth2/authorize?client_id=1471095365028548720
 - /delete number ... -> search chat to delete bot message max is 100 (not delete total bot message)
 - /log -> see the conversation log
 
-## This Project is based on https://github.com/discord/discord-example-app.git
+## Made with the help of https://github.com/discord/discord-example-app
 
 ## Other resources
 - Read **[the documentation](https://discord.com/developers/docs/intro)** for in-depth information about API features.
@@ -23,5 +23,5 @@ https://discord.com/oauth2/authorize?client_id=1471095365028548720
 
 ## Contact me:
 
-Discord: p_or
-Gmail: dominhnhat328@gmail.com
+- Discord: p_or
+- Gmail: dominhnhat328@gmail.com
