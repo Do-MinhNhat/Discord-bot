@@ -163,7 +163,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
           body: { content: `Log rỗng!` }
         });
       }
-      const log = chatSession.getHistory().map(entry => `${entry.role.toUpperCase()}: ${entry.parts.map(p => p.text).join('')}`).join('\n\n');
+      const log = await chatSession.getHistory().map(entry => `${entry.role.toUpperCase()}: ${entry.parts.map(p => p.text).join('')}`).join('\n\n');
       if (log.length > 1900) {
         await sendLongTextAsFile(token, log);
         return;
