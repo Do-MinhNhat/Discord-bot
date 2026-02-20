@@ -20,7 +20,7 @@ const client = new Client({
 
 const chatSessions = new Map(); // Lưu trữ chat session theo Server
 
-async function sendLogToDiscord(token, textContent) {
+async function sendLog(token, textContent) {
   const blob = new Blob([textContent], { type: 'text/plain' });
   const formData = new FormData();
 
@@ -158,7 +158,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       }
       const history = await chatSession.getHistory()
       const log = history.map(entry => `${entry.role.toUpperCase()}: ${entry.parts.map(p => p.text).join('')}`).join('\n\n');
-      await sendLogToDiscord(token, log);
+      await sendLog(token, log);
       return;
     }
 
