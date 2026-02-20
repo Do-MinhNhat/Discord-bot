@@ -5,7 +5,7 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import { sendGeminiMessage, startGemini } from './core/gemini.js';
 import { verifyKeyMiddleware } from 'discord-interactions';
 import { InteractionType, InteractionResponseType } from 'discord-interactions';
-import { FormData } from 'formdata-node';
+import FormData from 'form-data';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
