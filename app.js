@@ -25,12 +25,19 @@ async function sendLog(token, textContent) {
   const formData = new FormData();
 
   formData.append('files[0]', blob, 'history.txt');
-  formData.append('payload_json', JSON.stringify({ content: "Đây là file log của bạn:" }));
+  formData.append('payload_json', JSON.stringify({
+    content: "Đây là File Log:",
+    flags: 64
+  }));
 
-  return await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
-    method: 'PATCH',
-    body: formData
-  });
+  try {
+    await fetch(`https://discord.com/api/v10/webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
+      method: 'PATCH',
+      body: formData,
+    });
+  } catch (error) {
+    console.error('Error sending log file:', error);
+  }
 }
 
 async function getFullChannelHistory(channel, limit = 20) {
@@ -142,20 +149,23 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     const { name, options } = data;
 
     if (name === 'log') {
+      const chatSession = chatSessions.get(guild_id);
+      if (!chatSession) {
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content: `Log rỗng`,
+            flags: 64,
+          },
+        });
+      }
       res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-          content: `Đang lấy log...`,
+          content: `Đang gửi log...`,
           flags: 64,
         },
       });
-      const chatSession = chatSessions.get(guild_id);
-      if (!chatSession) {
-        return await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
-          method: 'PATCH',
-          body: { content: `Log rỗng!` }
-        });
-      }
       const history = await chatSession.getHistory()
       const log = history.map(entry => `${entry.role.toUpperCase()}: ${entry.parts.map(p => p.text).join('')}`).join('\n\n');
       await sendLog(token, log);
