@@ -20,21 +20,17 @@ const client = new Client({
 
 const chatSessions = new Map(); // Lưu trữ chat session theo Server
 
-async function sendLongTextAsFile(token, textContent, fileName = "response.txt") {
-  const applicationId = process.env.APP_ID;
-  const url = `https://discord.com/api/v10/webhooks/${applicationId}/${token}`;
-
-  const formData = new FormData();
-
-  // Tạo file từ chuỗi văn bản
-  const fileContent = Buffer.from(textContent, 'utf-8');
-
-  // Đính kèm file vào FormData
-  formData.append('files[0]', new Blob([fileContent]), fileName);
-
-  await fetch(url, {
-    method: 'POST',
-    body: formData
+async function sendLongTextAsFile(token, text) {
+  const form = new FormData();
+  form.append('file', Buffer.from(text, 'utf-8'), {
+    filename: 'log.txt',
+    contentType: 'text/plain',
+  });
+  url = `webhooks/${process.env.APP_ID}/${token}/messages/@original/files`;
+  await DiscordRequest(url, {
+    method: 'PATCH',
+    body: form,
+    headers: form.getHeaders(),
   });
 }
 
@@ -97,7 +93,7 @@ client.on('messageCreate', async (message) => {
 
     responseText.split('\n').forEach(line => {
       if (line.trim().length > 0) {
-        message.reply(line);
+        message.channel.send(line);
       }
     });
 
@@ -154,6 +150,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
           content: `Đang lấy log...`,
+          flag: 64,
         },
       });
       const chatSession = chatSessions.get(guild_id);
