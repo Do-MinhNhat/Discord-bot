@@ -24,12 +24,11 @@ async function sendLogToDiscord(token, textContent) {
   const blob = new Blob([textContent], { type: 'text/plain' });
   const formData = new FormData();
 
-  formData.append('file', blob, 'history.txt');
+  formData.append('files[0]', blob, 'history.txt');
   formData.append('payload_json', JSON.stringify({ content: "Đây là file log của bạn:" }));
 
   return await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
     method: 'PATCH',
-    headers: { 'Authorization': `Bot ${process.env.DISCORD_TOKEN}` },
     body: formData
   });
 }
