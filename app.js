@@ -22,16 +22,27 @@ const chatSessions = new Map(); // Lưu trữ chat session theo Server
 
 async function sendLongTextAsFile(token, text) {
   const form = new FormData();
-  form.append('file', Buffer.from(text, 'utf-8'), {
+  form.append('files[0]', Buffer.from(text, 'utf-8'), {
     filename: 'log.txt',
     contentType: 'text/plain',
   });
-  const url = `webhooks/${process.env.APP_ID}/${token}/messages/@original/files`;
-  await DiscordRequest(url, {
+  form.append('payload_json', JSON.stringify({ content: '', attachments: [{ id: 0, filename: 'log.txt' }] }), {
+    contentType: 'application/json',
+  });
+  const url = `https://discord.com/api/v10/webhooks/${process.env.APP_ID}/${token}/messages/@original`;
+  const res = await fetch(url, {
     method: 'PATCH',
     body: form,
-    headers: form.getHeaders(),
+    headers: {
+      Authorization: `Bot ${process.env.DISCORD_TOKEN}`,
+      ...form.getHeaders(),
+    },
   });
+  if (!res.ok) {
+    const data = await res.json();
+    console.error('sendLongTextAsFile error:', data);
+    throw new Error(JSON.stringify(data));
+  }
 }
 
 async function getFullChannelHistory(channel, limit = 20) {
@@ -50,9 +61,6 @@ async function getFullChannelHistory(channel, limit = 20) {
     if (role === 'user' && messageContent.startsWith('por')) {
       messageContent = messageContent.slice(3).trim();
     }
-
-    if (messageContent.length === 0)
-      messageContent = '[Tin nhắn này dùng để gọi AI phản hồi, không có nội dung chữ]';
 
     // Gắn tên người gửi để AI biết ai đang nói với ai
     const content = role === 'model' ? `${messageContent}` : `<@${msg.author.id}>: ${messageContent}`;
@@ -83,7 +91,7 @@ client.on('messageCreate', async (message) => {
 
   const LastMessage = fullHistory[fullHistory.length - 1];
   const lines = LastMessage.parts[0].text.split('\n');
-  lines[lines.length - 1] += " [Đây là Prompt chính, phía trên là lịch sử hội thoại để tham khảo, có thể bỏ qua nếu không liên quan]";
+  lines[lines.length - 1] = ">>>" + lines[lines.length - 1];
   const prompt = lines.join('\n');
 
   try {
