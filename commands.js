@@ -27,12 +27,12 @@ const START_GEMINI_COMMAND = {
         {
             type: 3,
             name: 'instruction',
-            description: 'Nhập hướng dẫn hoặc nhân cách (để trống để sử dụng mặc định)',
+            description: 'Nhập hướng dẫn hoặc nhân cách (Không chọn = mặc định)',
         },
         {
             type: 4,
             name: 'model',
-            description: 'Chọn model (0-5)',
+            description: 'Chọn model (Không chọn = mặc định)',
             choices: [
                 { name: 'gemma-3n-e2b-it (Mặc định và khuyên dùng)', value: 0 },
                 { name: 'gemma-3n-e4b-it', value: 1 },

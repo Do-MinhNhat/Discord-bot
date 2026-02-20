@@ -6,7 +6,6 @@ import { sendGeminiMessage, startGemini } from './core/gemini.js';
 import { verifyKeyMiddleware } from 'discord-interactions';
 import { InteractionType, InteractionResponseType } from 'discord-interactions';
 
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -18,7 +17,7 @@ const client = new Client({
   ],
 });
 
-var chatSession = null;
+const chatSessions = new Map();
 
 async function getFullChannelHistory(channel, limit = 20) {
   const messages = await channel.messages.fetch({ limit });
@@ -52,9 +51,9 @@ async function getFullChannelHistory(channel, limit = 20) {
   }, []);
 }
 
-
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.content.startsWith('por')) return;
+  const chatSession = chatSessions.get(message.guildId);
   if (!chatSession) {
     await message.reply("Hệ thống chưa được khởi động, vui lòng sử dụng lệnh /start");
     return;
@@ -105,7 +104,7 @@ app.get('/say', async (req, res) => {
 app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async function (req, res) {
 
   // Interaction id, type and data
-  const { type, data, channel_id, token } = req.body; // Lấy thêm token ở đây
+  const { type, data, channel_id, token, guild_id } = req.body; // Lấy thêm token ở đây
 
   /**
    * Handle verification requests
@@ -122,7 +121,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
     const { name, options } = data;
 
     if (name === 'stop') {
-      chatSession = null;
+      chatSessions.delete(guild_id);
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
@@ -135,7 +134,8 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       const instruction = options?.find(opt => opt.name === 'instruction')?.value || null;
       const model = options?.find(opt => opt.name === 'model')?.value || 0;
       try {
-        chatSession = await startGemini(instruction, model);
+        const chatSession = await startGemini(instruction, model);
+        chatSessions.set(guild_id, chatSession);
         return res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
