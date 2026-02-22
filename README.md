@@ -8,6 +8,7 @@ https://discord.com/oauth2/authorize?client_id=1471095365028548720
 
 ## Commands:
 
+- por + ... -> call the bot to talk
 - /start [instruction] [model] -> or just /start to start the bot <br>
 - /stop -> Stop the bot
 - /delete number ... -> search chat to delete bot message max is 100 (not delete total bot message)
