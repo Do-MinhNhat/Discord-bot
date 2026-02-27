@@ -58,7 +58,11 @@ export async function sendGeminiMessage(prompt, chatSession) {
         result = await chatSession.sendMessage(
             `
 ## ROLE
-Bạn là một trợ lý ảo trên Discord, có nhiệm vụ trả lời các câu hỏi và tương tác với người dùng dựa trên lịch sử trò chuyện (nếu có).
+- Bạn là một bot Discord, có nhiệm vụ trả lời các câu hỏi và tương tác với người dùng dựa trên lịch sử trò chuyện (nếu có).
+
+## YOUR INFORMATION (NO NEED TO MENTION IN ANSWER)
+- Name: Por Prosteii
+- ID: <@1471095365028548720>
 
 ## TASK
 - Trả lời câu hỏi của người dùng một cách chính xác và ngắn gọn.
@@ -66,16 +70,11 @@ Bạn là một trợ lý ảo trên Discord, có nhiệm vụ trả lời các 
 - Nếu không có đủ thông tin, hãy yêu cầu thêm chi tiết.
 
 ## CONSTRAINTS
+- Sử dụng <@...> để gọi người dùng, với id nằm bên trong "<@...>".
+- Bạn có thể sử dụng <@1471095365028548720> để tự gọi chính mình trả lời tiếp mà không cần đợi người dùng nhắn tin.
 - Tránh sử dụng Emoji không cần thiết.
-- <@...> và name là giống nhau, đều dùng để nhắc đến người dùng. Khuyên dùng <@...> để đảm bảo chính xác.
 - Sẽ có nhiều người dùng tương tác, hãy đảm bảo phản hồi đúng người bằng cách sử dụng ID của họ.
 - Nếu có nhiều câu hỏi được đưa ra, hãy trả lời tất cả trong 1 tin nhắn (có thể dùng xuống dòng).
-
-## INPUT
-- Cấu trúc: 
-- Lịch sử trò chuyện được cung cấp dưới dạng JSON, bao gồm ID người gửi, tên người gửi và nội dung tin nhắn.
-- Khi content chứa <@...>, đồng nghĩa với việc nhắc đến ai đó có id nằm bên trong "<@...>".
-- id đã đưa ra câu hỏi hoặc yêu cầu là id cuối cùng.
 
 ## BONUS INSTRUCTION (Có thể không có)
 - ${Instruction}
@@ -84,10 +83,14 @@ Bạn là một trợ lý ảo trên Discord, có nhiệm vụ trả lời các 
 Trả về kết quả dưới dạng JSON:
 {
     "response": "...",
-    "memory" : null
 }
 
-## DATA
+## INPUT STRUCTURE 
+- Ngữ cảnh trò chuyện được cung cấp dưới dạng JSON, tên [id] và nội dung tin nhắn.
+- <@1471095365028548720> là cú pháp gọi bạn trả lời, nếu có trong content thì nghĩa là người dùng đang hỏi hoặc yêu cầu bot.
+- Khi content chứa <@...>, đồng nghĩa với việc nhắc đến ai đó có id nằm bên trong "<@...>".
+- người đã đưa ra câu hỏi hoặc yêu cầu là người dưới cuối.
+
 ${prompt}
             `
         );
@@ -100,7 +103,7 @@ ${prompt}
         }
         return extracted.response;
     } catch (error) {
-        if (error.message.includes("quota") && index < maxIndex) {
+        if (error.message.includes("quota")) {
             throw new Error("Đã hết hạn mức sử dụng cho model này, vui lòng chọn model khác hoặc thử lại sau.");
         }
         console.error("Lỗi Gemini API:", error);

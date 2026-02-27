@@ -59,16 +59,14 @@ async function getContext(channel, limit = 30) {
     if (!msg.content && msg.attachments.size === 0) continue;
 
     let messageContent = msg.content;
-    if (messageContent.startsWith('por')) {
-      messageContent = messageContent.slice(3).trim();
-    }
 
     const last = grouped[grouped.length - 1];
+
     if (last && last.authorId === msg.author.id) {
       // Cùng người gửi: gom vào cùng 1 content
-      last.contents.push(messageContent);
+      messageContent && last.contents.push(messageContent);
     } else {
-      grouped.push({
+      messageContent && grouped.push({
         authorId: msg.author.id,
         authorName: msg.author.username,
         contents: [messageContent],
@@ -77,24 +75,14 @@ async function getContext(channel, limit = 30) {
   }
 
   const allMessages = grouped.map(group => ({
-    [`${group.authorName}-${group.authorId}`]: {
-      content: group.contents.join('\n')
-    }
-  }));
+      author: group.authorName + ` [${group.authorId}]`,
+      content: group.contents.join('\n'),
+    }));
 
-return `\`\`\`json\n${JSON.stringify(allMessages, null, 2)}\n\`\`\``;
+  return `\`\`\`json\n${JSON.stringify(allMessages, null, 2)}\n\`\`\``;
 }
 
-client.on('messageCreate', async (message) => {
-  if (message.author.bot || !message.content.startsWith('por')) return;
-  const chatSession = chatSessions.get(message.guildId);
-  if (!chatSession) {
-    await message.reply("Hệ thống chưa được khởi động, vui lòng sử dụng lệnh /start");
-    return;
-  }
-
-  const context = await getContext(message.channel);
-
+async function sendChat(message, context, chatSession) {
   try {
     await message.channel.sendTyping();
 
@@ -110,6 +98,33 @@ client.on('messageCreate', async (message) => {
     console.error('AI Error:', error);
     await message.reply("Hệ thống đang lỗi, vui lòng thử lại sau");
   }
+}
+
+
+client.on('messageCreate', async (message) => {
+  if (!message.mentions.has(client.user.id)) return;
+
+  const chatSession = chatSessions.get(message.guildId);
+  if (!chatSession) {
+    await message.reply({
+      content: "Hệ thống chưa được khởi động, vui lòng sử dụng lệnh /start",
+      allowedMentions: { repliedUser: false }
+    });
+    return;
+  }
+
+  if (message.author.bot) {
+
+    const context ={
+        author: "SELF CALL",
+        content: message.content,
+      };
+    await sendChat(message, `\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\``, chatSession);
+    return;
+  }
+
+  const context = await getContext(message.channel);
+  await sendChat(message, context, chatSession);
 });
 
 app.get('/say', async (req, res) => {
