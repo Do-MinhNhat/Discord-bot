@@ -2,10 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import { DiscordRequest } from './utils.js';
 import { Client, GatewayIntentBits } from 'discord.js';
-import { sendGeminiMessage, startGemini } from './core/gemini.js';
-import { verifyKeyMiddleware } from 'discord-interactions';
-import { InteractionType, InteractionResponseType } from 'discord-interactions';
-import { FormData, Blob } from 'formdata-node';
+import { sendGeminiMessage, startGemini, setInstruction } from './core/gemini.js';
+import { verifyKeyMiddleware, InteractionType, InteractionResponseType } from 'discord-interactions';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,58 +18,71 @@ const client = new Client({
 
 const chatSessions = new Map(); // Lưu trữ chat session theo Server
 
-async function sendLog(token, textContent) {
-  const blob = new Blob([textContent], { type: 'text/plain' });
-  const formData = new FormData();
+async function sendLog(APP_ID, token, textContent) {
+  if (!textContent) {
+    textContent = "Log rỗng";
+  }
 
-  formData.append('files[0]', blob, 'history.txt');
-  formData.append('payload_json', JSON.stringify({
-    content: "Đây là File Log:",
-    flags: 64
-  }));
+  // Split nếu quá dài (Discord limit 2000 chars)
+  const chunks = textContent.match(/[\s\S]{1,1900}/g) || [textContent];
 
-  try {
-    await fetch(`https://discord.com/api/v10/webhooks/${process.env.APP_ID}/${token}/messages/@original`, {
-      method: 'PATCH',
-      body: formData,
+  for (const chunk of chunks) {
+    await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}`, {
+      method: 'POST',
+      body: {
+        content: `\`\`\`json\n${chunk}\n\`\`\``,
+        flags: 64
+      },
     });
-  } catch (error) {
-    console.error('Error sending log file:', error);
   }
 }
 
-async function getFullChannelHistory(channel, limit = 20) {
+async function getContext(channel, limit = 30) {
   const messages = await channel.messages.fetch({ limit });
   // Đảo ngược để tin cũ lên đầu
   const sorted = Array.from(messages.values()).reverse();
 
-  return sorted.reduce((acc, msg) => {
-    // 1. Bỏ qua tin nhắn nếu nó không có nội dung chữ (chỉ có ảnh/embed)
-    if (!msg.content && msg.attachments.size === 0) return acc;
-    // Xác định vai trò: Nếu là Bot của bạn thì là 'model', còn lại là 'user'
-    const role = msg.author.id === client.user.id ? "model" : "user";
+  // Tìm vị trí tin nhắn cuối cùng của AI, chỉ lấy từ đó trở đi
+  let lastBotIndex = -1;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (sorted[i].author.id === client.user.id) {
+      lastBotIndex = i;
+      break;
+    }
+  }
+  // Chỉ lấy tin nhắn user sau lần trả lời cuối của AI (bỏ tin AI)
+  const relevant = lastBotIndex === -1 ? sorted : sorted.slice(lastBotIndex + 1);
 
-    // Loại bỏ 'por' ở đầu câu nếu là user
+  // Gom nhóm tin nhắn liên tiếp cùng người gửi
+  const grouped = [];
+  for (const msg of relevant) {
+    if (!msg.content && msg.attachments.size === 0) continue;
+
     let messageContent = msg.content;
-    if (role === 'user' && messageContent.startsWith('por')) {
+    if (messageContent.startsWith('por')) {
       messageContent = messageContent.slice(3).trim();
     }
 
-    // Gắn tên người gửi để AI biết ai đang nói với ai
-    const content = role === 'model' ? `${messageContent}` : `<@${msg.author.id}>: ${messageContent}`;
-
-    if (acc.length > 0 && acc[acc.length - 1].role === role) {
-      // Nếu cùng tác giả thì không lặp lại mention
-      const mergedContent = (role === 'user' && acc[acc.length - 1]._lastAuthorId === msg.author.id)
-        ? messageContent
-        : content;
-      acc[acc.length - 1].parts[0].text += `\n${mergedContent}`;
-      acc[acc.length - 1]._lastAuthorId = msg.author.id;
+    const last = grouped[grouped.length - 1];
+    if (last && last.authorId === msg.author.id) {
+      // Cùng người gửi: gom vào cùng 1 content
+      last.contents.push(messageContent);
     } else {
-      acc.push({ role, parts: [{ text: content }], _lastAuthorId: msg.author.id });
+      grouped.push({
+        authorId: msg.author.id,
+        authorName: msg.author.username,
+        contents: [messageContent],
+      });
     }
-    return acc;
-  }, []);
+  }
+
+  const allMessages = grouped.map(group => ({
+    [`${group.authorName}-${group.authorId}`]: {
+      content: group.contents.join('\n')
+    }
+  }));
+
+return `\`\`\`json\n${JSON.stringify(allMessages, null, 2)}\n\`\`\``;
 }
 
 client.on('messageCreate', async (message) => {
@@ -82,17 +93,12 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  const fullHistory = await getFullChannelHistory(message.channel, 15);
-
-  const LastMessage = fullHistory[fullHistory.length - 1];
-  const lines = LastMessage.parts[0].text.split('\n');
-  lines[lines.length - 1] = ">>> " + lines[lines.length - 1];
-  const prompt = lines.join('\n');
+  const context = await getContext(message.channel);
 
   try {
     await message.channel.sendTyping();
 
-    const responseText = await sendGeminiMessage(prompt, chatSession);
+    const responseText = await sendGeminiMessage(context, chatSession);
 
     responseText.split('\n').forEach(line => {
       if (line.trim().length > 0) {
@@ -107,18 +113,18 @@ client.on('messageCreate', async (message) => {
 });
 
 app.get('/say', async (req, res) => {
-  const { message, CHANNEL_ID } = req.query;
+  const { id, msg } = req.query;
 
-  if (!message || !CHANNEL_ID) {
+  if (!msg || !id) {
     return res.status(400).send('Thiếu nội dung hoặc ID kênh!');
   }
 
   try {
-    await DiscordRequest(`channels/${CHANNEL_ID}/messages`, {
+    await DiscordRequest(`channels/${id}/messages`, {
       method: 'POST',
-      body: { content: message },
+      body: { content: msg },
     });
-    return res.send(`Bot đã nói: ${message}`);
+    return res.send(`Bot đã nói: ${msg}`);
   } catch (err) {
     console.error(err);
     return res.status(500).send('Lỗi khi bot đang cố gắng nói.');
@@ -147,10 +153,23 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
    */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name, options } = data;
+    const endpoint = `webhooks/${process.env.APP_ID}/${token}/messages/@original`;
+
+    if (name === 'set_instruction') {
+      const instruction = options?.find(opt => opt.name === 'instruction')?.value || null;
+      setInstruction(instruction);
+      return res.send({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `Đã cập nhật hướng dẫn mới!`,
+          flags: 64,
+        },
+      });
+    }
 
     if (name === 'log') {
       const chatSession = chatSessions.get(guild_id);
-      if (!chatSession) {
+      if (!chatSession || !chatSession.getHistory) {
         return res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
@@ -166,9 +185,26 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
           flags: 64,
         },
       });
-      const history = await chatSession.getHistory()
-      const log = history.map(entry => `${entry.role.toUpperCase()}: ${entry.parts.map(p => p.text).join('')}`).join('\n\n');
-      await sendLog(token, log);
+      try {
+        const history = await chatSession.getHistory()
+        // Chỉ lấy phần JSON từ các entry (loại bỏ text thường)
+        const jsonParts = history
+          .map(entry => entry.parts.map(p => p.text).join(''))
+          .map(text => {
+            const match = text.match(/```json\n([\s\S]*?)\n```/);
+            return match ? match[1] : null;
+          })
+          .filter(Boolean);
+        const log = jsonParts.join('\n');
+        await sendLog(process.env.APP_ID, token, log);
+      }
+      catch (error) {
+        console.error('Error fetching log:', error);
+        await DiscordRequest(endpoint, {
+          method: 'PATCH',
+          body: { content: 'Lỗi khi lấy log!', flags: 64 },
+        });
+      }
       return;
     }
 
@@ -206,16 +242,15 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
 
       if (!channel) throw new Error("Không tìm thấy channel");
 
-      const endpoint = `webhooks/${process.env.APP_ID}/${token}/messages/@original`;
-
       try {
         res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
             content: `Đang duyệt qua các tin nhắn...`,
+            flags: 64,
           },
         });
-        // Fetch messages (max 100 to filter)
+
         const messages = await channel.messages.fetch({ limit: 100 });
 
         // Filter bot messages
@@ -226,7 +261,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
         if (botMessages.length > 0) {
           await DiscordRequest(endpoint, {
             method: 'PATCH',
-            body: { content: `Đang dọn dẹp các tin nhắn...` }
+            body: { content: `Đang dọn dẹp các tin nhắn...`, flags: 64 }
           });
           let deletedCount = 0;
           for (const msg of botMessages) {
@@ -237,29 +272,20 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
               console.error('Failed to delete message:', error);
             }
           }
-
-          await DiscordRequest(endpoint, {
-            method: 'PATCH',
-            body: { content: `Đã dọn xong ${deletedCount} tin nhắn!` }
-          });
-
-        } else {
           return await DiscordRequest(endpoint, {
             method: 'PATCH',
-            body: { content: `Không tìm thấy tin nhắn nào` }
+            body: { content: `Đã dọn xong ${deletedCount} tin nhắn!`, flags: 64 }
           });
         }
-
-        setTimeout(async () => {
-          await DiscordRequest(endpoint, { method: 'DELETE' }).catch(() => { });
-        }, 3000);
-
-        return;
-      } catch (error) {
-        console.error('Delete command error:', error);
         return await DiscordRequest(endpoint, {
           method: 'PATCH',
-          body: { content: `Lỗi: ${error.message}` }
+          body: { content: `Không tìm thấy tin nhắn nào`, flags: 64 }
+        });
+      } catch (error) {
+        console.error('Error deleting messages:', error);
+        return await DiscordRequest(endpoint, {
+          method: 'PATCH',
+          body: { content: `Lỗi khi xóa tin nhắn!`, flags: 64 }
         });
       }
     }
@@ -269,8 +295,6 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
   console.error('unknown interaction type', type);
   return res.status(400).json({ error: 'unknown interaction type' });
 });
-
-
 
 app.listen(PORT, () => {
   console.log('Listening on port', PORT);
