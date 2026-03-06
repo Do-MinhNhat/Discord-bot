@@ -18,24 +18,24 @@ const client = new Client({
 
 const chatSessions = new Map(); // Lưu trữ chat session theo Server
 
-// async function sendLog(APP_ID, token, textContent) {
-//   if (!textContent) {
-//     textContent = "Log rỗng";
-//   }
+async function sendLog(APP_ID, token, textContent) {
+  if (!textContent) {
+    textContent = "Log rỗng";
+  }
 
-//   // Split nếu quá dài (Discord limit 2000 chars)
-//   const chunks = textContent.match(/[\s\S]{1,1900}/g) || [textContent];
+  // Split nếu quá dài (Discord limit 2000 chars)
+  const chunks = textContent.match(/[\s\S]{1,1900}/g) || [textContent];
 
-//   for (const chunk of chunks) {
-//     await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}`, {
-//       method: 'POST',
-//       body: {
-//         content: `\`\`\`json\n${chunk}\n\`\`\``,
-//         flags: 64
-//       },
-//     });
-//   }
-// }
+  for (const chunk of chunks) {
+    await DiscordRequest(`webhooks/${process.env.APP_ID}/${token}`, {
+      method: 'POST',
+      body: {
+        content: `\`\`\`json\n${chunk}\n\`\`\``,
+        flags: 64
+      },
+    });
+  }
+}
 
 async function getContext(channel, limit = 30) {
   const messages = await channel.messages.fetch({ limit });
@@ -112,9 +112,8 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  const allMessages = await getContext(message.channel);
-  const context = allMessages.slice(0, -1);
-  const prompt = allMessages[allMessages.length - 1];
+  const context = await getContext(message.channel);
+  const prompt = context[context.length - 1];
   const reference = message.reference ? await message.fetchReference() : null;
   if (reference) {
     prompt.referenceAuthor = `<@${reference?.author?.id}>` || null;
@@ -179,46 +178,46 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       });
     }
 
-    // if (name === 'log') {
-    //   const chatSession = chatSessions.get(guild_id);
-    //   if (!chatSession || !chatSession.getHistory) {
-    //     return res.send({
-    //       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-    //       data: {
-    //         content: `Log rỗng`,
-    //         flags: 64,
-    //       },
-    //     });
-    //   }
-    //   res.send({
-    //     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-    //     data: {
-    //       content: `Đang gửi log...`,
-    //       flags: 64,
-    //     },
-    //   });
-    //   try {
-    //     const history = await chatSession.getHistory()
-    //     // Chỉ lấy phần JSON từ các entry (loại bỏ text thường)
-    //     const jsonParts = history
-    //       .map(entry => entry.parts.map(p => p.text).join(''))
-    //       .map(text => {
-    //         const match = text.match(/```json\n([\s\S]*?)\n```/);
-    //         return match ? match[1] : null;
-    //       })
-    //       .filter(Boolean);
-    //     const log = jsonParts.join('\n');
-    //     await sendLog(process.env.APP_ID, token, log);
-    //   }
-    //   catch (error) {
-    //     console.error('Error fetching log:', error);
-    //     await DiscordRequest(endpoint, {
-    //       method: 'PATCH',
-    //       body: { content: 'Lỗi khi lấy log!', flags: 64 },
-    //     });
-    //   }
-    //   return;
-    // }
+    if (name === 'log') {
+      const chatSession = chatSessions.get(guild_id);
+      if (!chatSession || !chatSession.getHistory) {
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content: `Log rỗng`,
+            flags: 64,
+          },
+        });
+      }
+      res.send({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `Đang gửi log...`,
+          flags: 64,
+        },
+      });
+      try {
+        const history = await chatSession.getHistory()
+        // Chỉ lấy phần JSON từ các entry (loại bỏ text thường)
+        const jsonParts = history
+          .map(entry => entry.parts.map(p => p.text).join(''))
+          .map(text => {
+            const match = text.match(/```json\n([\s\S]*?)\n```/);
+            return match ? match[1] : null;
+          })
+          .filter(Boolean);
+        const log = jsonParts.join('\n');
+        await sendLog(process.env.APP_ID, token, log);
+      }
+      catch (error) {
+        console.error('Error fetching log:', error);
+        await DiscordRequest(endpoint, {
+          method: 'PATCH',
+          body: { content: 'Lỗi khi lấy log!', flags: 64 },
+        });
+      }
+      return;
+    }
 
     if (name === 'stop') {
       chatSessions.delete(guild_id);
