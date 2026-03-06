@@ -32,16 +32,12 @@ function extractJSON(str) {
 
 export async function startGemini(instruction = "Không có", modelIndex = 0) {
 
-    //console.log("Đang khởi tạo Gemini...");
-
     setInstruction(instruction);
 
     try {
         const model = genAI.getGenerativeModel({
             model: modelList[modelIndex],
         });
-
-        //console.log("Gemini đã sẵn sàng!");
 
         return model.startChat();
     } catch (error) {
@@ -53,7 +49,6 @@ export async function startGemini(instruction = "Không có", modelIndex = 0) {
 export async function sendGeminiMessage(prompt, context, chatSession) {
     try {
         let result;
-        //console.log("--- Dữ liệu gửi đi: ---"); console.log(prompt);
 
         result = await chatSession.sendMessage(
             `
@@ -89,11 +84,6 @@ ${JSON.stringify(prompt)}
 - Input có thể chứa ReferenceAuthor và RepliedContent. Đó là tin nhắn mà người dùng liên kết đến hãy đọc nó và trả lời câu hỏi của người dùng.
             `
         );
-        console.log("--- CONTEXT ---"); console.log(context);
-        console.log("--- PROMPT ---"); console.log(prompt);
-        console.log("--- Dữ liệu nhận được từ Gemini ---"); console.log(result.response.text());
-
-        //console.log("--- PHẢN HỒI TỪ AI ---"); console.log(result.response.text());
 
         const extracted = extractJSON(result.response.text());
         if (!extracted) {
