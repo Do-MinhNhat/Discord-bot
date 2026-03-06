@@ -50,7 +50,7 @@ export async function startGemini(instruction = "Không có", modelIndex = 0) {
     }
 }
 
-export async function sendGeminiMessage(prompt, chatSession) {
+export async function sendGeminiMessage(prompt, context, chatSession) {
     try {
         let result;
         //console.log("--- Dữ liệu gửi đi: ---"); console.log(prompt);
@@ -58,11 +58,7 @@ export async function sendGeminiMessage(prompt, chatSession) {
         result = await chatSession.sendMessage(
             `
 ## ROLE
-- Bạn là một bot Discord, có nhiệm vụ trả lời các câu hỏi và tương tác với người dùng dựa trên lịch sử trò chuyện (nếu có).
-
-## YOUR INFORMATION (NO NEED TO MENTION IN ANSWER)
-- Name: Por Prosteii
-- ID: <@1471095365028548720>
+- Bạn là <@1471095365028548720> một discord bot, Bạn không phải là một AI của 1 người dùng mà là nhiều người dùng, bạn có thể trả lời câu hỏi, trò chuyện, giúp đỡ người dùng trong server Discord này.
 
 ## TASK
 - Trả lời câu hỏi của người dùng một cách chính xác và ngắn gọn.
@@ -70,11 +66,7 @@ export async function sendGeminiMessage(prompt, chatSession) {
 - Nếu không có đủ thông tin, hãy yêu cầu thêm chi tiết.
 
 ## CONSTRAINTS
-- Sử dụng <@...> để gọi người dùng, với id nằm bên trong "<@...>".
-- Bạn có thể sử dụng <@1471095365028548720> để tự gọi chính mình trả lời tiếp mà không cần đợi người dùng nhắn tin.
 - Tránh sử dụng Emoji không cần thiết.
-- Sẽ có nhiều người dùng tương tác, hãy đảm bảo phản hồi đúng người bằng cách sử dụng ID của họ.
-- Nếu có nhiều câu hỏi được đưa ra, hãy trả lời tất cả trong 1 tin nhắn (có thể dùng xuống dòng).
 
 ## BONUS INSTRUCTION (Có thể không có)
 - ${Instruction}
@@ -85,15 +77,21 @@ Trả về kết quả dưới dạng JSON:
     "response": "...",
 }
 
-## INPUT STRUCTURE 
-- Ngữ cảnh trò chuyện được cung cấp dưới dạng JSON, tên [id] và nội dung tin nhắn.
-- <@1471095365028548720> là cú pháp gọi bạn trả lời, nếu có trong content thì nghĩa là người dùng đang hỏi hoặc yêu cầu bot.
-- Khi content chứa <@...>, đồng nghĩa với việc nhắc đến ai đó có id nằm bên trong "<@...>".
-- người đã đưa ra câu hỏi hoặc yêu cầu là người dưới cuối.
+## CONTEXT
+\`\`\`json
+${JSON.stringify(context)}
+\`\`\`
 
-${prompt}
+## INPUT
+\`\`\`json
+${JSON.stringify(prompt)}
+\`\`\`
+- Input có thể chứa ReferenceAuthor và RepliedContent. Đó là tin nhắn mà người dùng liên kết đến hãy đọc nó và trả lời câu hỏi của người dùng.
             `
         );
+        console.log("--- CONTEXT ---"); console.log(context);
+        console.log("--- PROMPT ---"); console.log(prompt);
+        console.log("--- Dữ liệu nhận được từ Gemini ---"); console.log(result.response.text());
 
         //console.log("--- PHẢN HỒI TỪ AI ---"); console.log(result.response.text());
 

@@ -68,25 +68,24 @@ async function getContext(channel, limit = 30) {
     } else {
       messageContent && grouped.push({
         authorId: msg.author.id,
-        authorName: msg.author.username,
         contents: [messageContent],
       });
     }
   }
 
   const allMessages = grouped.map(group => ({
-      author: group.authorName + ` [${group.authorId}]`,
+      author: `<@${group.authorId}>`,
       content: group.contents.join('\n'),
     }));
 
-  return `\`\`\`json\n${JSON.stringify(allMessages, null, 2)}\n\`\`\``;
+  return allMessages;
 }
 
-async function sendChat(message, context, chatSession) {
+async function sendChat(message, prompt, context, chatSession) {
   try {
     await message.channel.sendTyping();
 
-    const responseText = await sendGeminiMessage(context, chatSession);
+    const responseText = await sendGeminiMessage(prompt, context, chatSession);
 
     responseText.split('\n').forEach(line => {
       if (line.trim().length > 0) {
@@ -102,7 +101,7 @@ async function sendChat(message, context, chatSession) {
 
 
 client.on('messageCreate', async (message) => {
-  if (!message.mentions.has(client.user.id)) return;
+  if (!message.mentions.has(client.user.id) || message.author.bot) return;
 
   const chatSession = chatSessions.get(message.guildId);
   if (!chatSession) {
@@ -113,18 +112,16 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  if (message.author.bot) {
-
-    const context ={
-        author: "SELF CALL",
-        content: message.content,
-      };
-    await sendChat(message, `\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\``, chatSession);
-    return;
+  const allMessages = await getContext(message.channel);
+  const context = allMessages.slice(0, -1);
+  const prompt = allMessages[allMessages.length - 1];
+  const reference = message.reference ? await message.fetchReference() : null;
+  if (reference) {
+    prompt.referenceAuthor = `<@${reference?.author?.id}>` || null;
+    prompt.repliedContent = reference?.content || null;
   }
 
-  const context = await getContext(message.channel);
-  await sendChat(message, context, chatSession);
+  await sendChat(message, prompt , context, chatSession);
 });
 
 app.get('/say', async (req, res) => {
@@ -229,6 +226,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
           content: `Hệ thống đã được dừng!`,
+          flags: 64,
         },
       });
     }
@@ -243,6 +241,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
             content: `Hệ thống đã được khởi động!`,
+            flags: 64,
           },
         });
       } catch (error) {
